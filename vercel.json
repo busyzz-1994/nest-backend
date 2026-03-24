@@ -2,6 +2,12 @@
   "version": 2,
   "regions": ["sin1"],
   "buildCommand": "pnpm build",
+  "functions": {
+    "api/index.ts": {
+      "includeFiles": "dist/**",
+      "maxDuration": 30
+    }
+  },
   "rewrites": [
     {
       "source": "/(.*)",

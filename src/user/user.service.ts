@@ -59,6 +59,30 @@ export class UserService {
     });
   }
 
+  /** 更新头像（事务内返回旧 URL，避免并发问题） */
+  async updateAvatarWithOldUrl(userId: number, newAvatarUrl: string) {
+    return this.prisma.$transaction(async (tx) => {
+      // 1. 读取旧头像（行锁，防止并发更新）
+      const oldUser = await tx.user.findUnique({
+        where: { id: userId },
+        select: { avatarUrl: true },
+      });
+
+      // 2. 更新为新头像
+      const updated = await tx.user.update({
+        where: { id: userId },
+        data: { avatarUrl: newAvatarUrl },
+        select: userSelect,
+      });
+
+      // 3. 返回新用户数据 + 旧 URL（供外部删除文件）
+      return {
+        user: updated,
+        oldAvatarUrl: oldUser?.avatarUrl || null,
+      };
+    });
+  }
+
   async getList(page: number, pageSize: number) {
     const skip = (page - 1) * pageSize;
     const [users, total] = await Promise.all([

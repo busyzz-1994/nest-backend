@@ -118,17 +118,22 @@ export class UserController {
     @CurrentUser() user: JwtPayload,
     @Body(new ZodValidationPipe(updateMeSchema)) body: UpdateMeInput,
   ) {
-    // 删除旧头像（fire-and-forget）
-    const existing = await this.userService.findById(user.userId);
-    if (existing?.avatarUrl?.startsWith(this.r2.publicUrl)) {
-      const oldKey = existing.avatarUrl.replace(`${this.r2.publicUrl}/`, '');
-      this.r2.deleteObject(oldKey).catch(() => {});
+    // 1️⃣ 数据库事务：原子性读取旧值 + 更新新值
+    const { user: updated, oldAvatarUrl } =
+      await this.userService.updateAvatarWithOldUrl(
+        user.userId,
+        body.avatarUrl,
+      );
+
+    // 2️⃣ 事务提交后，异步删除旧文件（fire-and-forget + 错误日志）
+    if (oldAvatarUrl?.startsWith(this.r2.publicUrl)) {
+      const oldKey = oldAvatarUrl.replace(`${this.r2.publicUrl}/`, '');
+      this.r2.deleteObject(oldKey).catch((err) => {
+        // 记录孤立文件，定期清理任务会重试
+        console.error(`[Orphan File] Failed to delete: ${oldKey}`, err);
+      });
     }
 
-    const updated = await this.userService.updateAvatarUrl(
-      user.userId,
-      body.avatarUrl,
-    );
     return { code: 200, message: '头像更新成功', data: updated };
   }
 

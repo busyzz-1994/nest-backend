@@ -16,6 +16,8 @@ export class R2Service {
         accessKeyId: this.config.get('R2_ACCESS_KEY_ID')!,
         secretAccessKey: this.config.get('R2_SECRET_ACCESS_KEY')!,
       },
+      requestChecksumCalculation: 'WHEN_REQUIRED',
+      responseChecksumValidation: 'WHEN_REQUIRED',
     });
     this.bucket = this.config.get('R2_BUCKET_NAME')!;
     this.publicUrl = this.config.get('R2_PUBLIC_URL')!;

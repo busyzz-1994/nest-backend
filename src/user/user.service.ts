@@ -9,6 +9,8 @@ const userSelect = {
   userName: true,
   email: true,
   avatarUrl: true,
+  role: true,
+  menuPermissions: true,
   createdAt: true,
 } as const;
 
@@ -36,7 +38,13 @@ export class UserService {
     const isMatch = await bcrypt.compare(input.password, user.password);
     if (!isMatch) return null;
 
-    return { id: user.id, userName: user.userName, email: user.email };
+    return {
+      id: user.id,
+      userName: user.userName,
+      email: user.email,
+      role: user.role.toLowerCase() as 'admin' | 'user',
+      menuPermissions: user.menuPermissions,
+    };
   }
 
   async create(input: RegisterInput) {
@@ -46,6 +54,8 @@ export class UserService {
         userName: input.userName,
         password: hashedPassword,
         email: input.email,
+        role: 'USER',
+        menuPermissions: ['profile'], // 新用户默认只有个人资料权限
       },
       select: userSelect,
     });
@@ -101,5 +111,24 @@ export class UserService {
       pageSize,
       totalPages: Math.ceil(total / pageSize),
     };
+  }
+
+  async updateUserMenuPermissions(userId: number, menuPermissions: string[]) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { menuPermissions },
+      select: userSelect,
+    });
+  }
+
+  async getUserPermissions(userId: number) {
+    return this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        role: true,
+        menuPermissions: true,
+      },
+    });
   }
 }

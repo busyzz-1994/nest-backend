@@ -14,8 +14,11 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '../common/guards/auth.guard';
+import { MenuGuard } from '../common/guards/menu.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { RequireMenu } from '../common/decorators/require-menu.decorator';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
+import { MENU_KEYS } from '../common/constants/menu.constant';
 import type { JwtPayload } from '../common/interfaces/jwt-payload.interface';
 import { PostService } from './post.service';
 import { createPostSchema, updatePostSchema } from './schemas/post.schema';
@@ -30,7 +33,8 @@ const postIdPipe = new ParseIntPipe({
 });
 
 @Controller('posts')
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, MenuGuard)
+@RequireMenu(MENU_KEYS.POSTS)
 export class PostController {
   constructor(private readonly postService: PostService) {}
 
@@ -54,8 +58,7 @@ export class PostController {
       100,
       Math.max(1, parseInt(pageSizeStr || '10', 10) || 10),
     );
-    const data = await this.postService.getList(page, pageSize);
-    return { code: 200, message: 'ok', data };
+    return this.postService.getList(page, pageSize);
   }
 
   @Get(':id')
@@ -67,7 +70,7 @@ export class PostController {
         HttpStatus.NOT_FOUND,
       );
     }
-    return { code: 200, message: 'ok', data: post };
+    return post;
   }
 
   @Patch(':id')

@@ -1,20 +1,27 @@
 generator client {
   provider = "prisma-client-js"
-  output   = "../src/generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
 }
 
+enum UserRole {
+  ADMIN
+  USER
+}
+
 model User {
-  id        Int      @id @default(autoincrement())
-  userName  String
-  password  String
-  email     String   @unique
-  avatarUrl String?
-  createdAt DateTime @default(now())
-  posts     Post[]
+  id              Int      @id @default(autoincrement())
+  phoneNumber     String?  @unique
+  userName        String
+  password        String
+  email           String   @unique
+  avatarUrl       String?
+  role            UserRole @default(USER)
+  menuPermissions String[] @default([])
+  createdAt       DateTime @default(now())
+  posts           Post[]
 }
 
 model Post {

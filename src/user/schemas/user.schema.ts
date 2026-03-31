@@ -26,3 +26,11 @@ export const updateMeSchema = z.object({
 });
 
 export type UpdateMeInput = z.infer<typeof updateMeSchema>;
+
+export const updateUserPermissionsSchema = z.object({
+  menuPermissions: z.array(z.string()).min(0, '菜单权限必须是数组'),
+});
+
+export type UpdateUserPermissionsInput = z.infer<
+  typeof updateUserPermissionsSchema
+>;

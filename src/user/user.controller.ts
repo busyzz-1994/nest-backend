@@ -5,6 +5,8 @@ import {
   HttpCode,
   HttpException,
   HttpStatus,
+  Param,
+  ParseIntPipe,
   Patch,
   Post,
   Query,
@@ -15,8 +17,13 @@ import { ConfigService } from '@nestjs/config';
 import type { Response } from 'express';
 import * as jwt from 'jsonwebtoken';
 import { AuthGuard } from '../common/guards/auth.guard';
+import { MenuGuard } from '../common/guards/menu.guard';
+import { RoleGuard } from '../common/guards/role.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { RequireMenu } from '../common/decorators/require-menu.decorator';
+import { RequireRole } from '../common/decorators/require-role.decorator';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
+import { MENU_KEYS } from '../common/constants/menu.constant';
 import type { JwtPayload } from '../common/interfaces/jwt-payload.interface';
 import { R2Service } from '../r2/r2.service';
 import { UserService } from './user.service';
@@ -24,11 +31,13 @@ import {
   loginSchema,
   registerSchema,
   updateMeSchema,
+  updateUserPermissionsSchema,
 } from './schemas/user.schema';
 import type {
   LoginInput,
   RegisterInput,
   UpdateMeInput,
+  UpdateUserPermissionsInput,
 } from './schemas/user.schema';
 
 @Controller('users')
@@ -71,7 +80,12 @@ export class UserController {
     }
 
     const token = jwt.sign(
-      { userId: user.id, email: user.email },
+      {
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+        menuPermissions: user.menuPermissions,
+      },
       this.config.get<string>('JWT_SECRET')!,
       {
         expiresIn: (this.config.get('JWT_EXPIRES_IN') ||
@@ -100,7 +114,8 @@ export class UserController {
   }
 
   @Get('me')
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, MenuGuard)
+  @RequireMenu(MENU_KEYS.PROFILE)
   async getMe(@CurrentUser() user: JwtPayload) {
     const found = await this.userService.findById(user.userId);
     if (!found) {
@@ -109,11 +124,12 @@ export class UserController {
         HttpStatus.NOT_FOUND,
       );
     }
-    return { code: 200, message: 'ok', data: found };
+    return found;
   }
 
   @Patch('me')
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, MenuGuard)
+  @RequireMenu(MENU_KEYS.PROFILE)
   async updateMe(
     @CurrentUser() user: JwtPayload,
     @Body(new ZodValidationPipe(updateMeSchema)) body: UpdateMeInput,
@@ -138,7 +154,8 @@ export class UserController {
   }
 
   @Get()
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, MenuGuard)
+  @RequireMenu(MENU_KEYS.DASHBOARD)
   async getUsers(
     @Query('page') pageStr?: string,
     @Query('pageSize') pageSizeStr?: string,
@@ -148,7 +165,87 @@ export class UserController {
       100,
       Math.max(1, parseInt(pageSizeStr || '10', 10) || 10),
     );
-    const data = await this.userService.getList(page, pageSize);
-    return { code: 200, message: 'ok', data };
+    return this.userService.getList(page, pageSize);
+  }
+
+  /* -------- 权限管理接口（仅管理员） -------- */
+
+  @Get('permissions/menus')
+  @UseGuards(AuthGuard, RoleGuard)
+  @RequireRole('admin')
+  getAvailableMenus() {
+    return [
+      {
+        key: MENU_KEYS.DASHBOARD,
+        name: 'Dashboard',
+        description: '仪表盘 - 查看用户列表',
+        path: '/dashboard',
+      },
+      {
+        key: MENU_KEYS.POSTS,
+        name: '文章管理',
+        description: '文章列表 - 查看和管理文章',
+        path: '/posts',
+      },
+      {
+        key: MENU_KEYS.PROFILE,
+        name: '个人资料',
+        description: '个人资料 - 查看和编辑个人信息',
+        path: '/profile',
+      },
+    ];
+  }
+
+  @Get(':id/permissions')
+  @UseGuards(AuthGuard, RoleGuard)
+  @RequireRole('admin')
+  async getUserPermissions(@Param('id', ParseIntPipe) id: number) {
+    const user = await this.userService.getUserPermissions(id);
+    if (!user) {
+      throw new HttpException(
+        { code: 404, message: '用户不存在' },
+        HttpStatus.NOT_FOUND,
+      );
+    }
+    return {
+      role: user.role.toLowerCase(),
+      menuPermissions: user.menuPermissions,
+    };
+  }
+
+  @Patch(':id/permissions')
+  @UseGuards(AuthGuard, RoleGuard)
+  @RequireRole('admin')
+  async updateUserPermissions(
+    @Param('id', ParseIntPipe) id: number,
+    @Body(new ZodValidationPipe(updateUserPermissionsSchema))
+    body: UpdateUserPermissionsInput,
+  ) {
+    const targetUser = await this.userService.findById(id);
+    if (!targetUser) {
+      throw new HttpException(
+        { code: 404, message: '用户不存在' },
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    // 不能修改管理员的权限
+    if (targetUser.role === 'ADMIN') {
+      throw new HttpException(
+        { code: 403, message: '不能修改管理员的权限' },
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
+    const updated = await this.userService.updateUserMenuPermissions(
+      id,
+      body.menuPermissions,
+    );
+
+    return {
+      code: 200,
+      message: '权限更新成功，用户需重新登录生效',
+      data: updated,
+    };
   }
 }

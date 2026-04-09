@@ -1,5 +1,11 @@
 import { z } from 'zod';
 
+export const sendCodeSchema = z.object({
+  email: z.string({ error: '邮箱不能为空' }).email('邮箱格式不正确'),
+});
+
+export type SendCodeInput = z.infer<typeof sendCodeSchema>;
+
 export const registerSchema = z.object({
   userName: z
     .string({ error: '用户名不能为空' })
@@ -10,6 +16,7 @@ export const registerSchema = z.object({
     .min(6, '密码至少 6 个字符')
     .max(50, '密码最多 50 个字符'),
   email: z.string({ error: '邮箱不能为空' }).email('邮箱格式不正确'),
+  code: z.string({ error: '验证码不能为空' }).length(6, '请输入 6 位验证码'),
 });
 
 export type RegisterInput = z.infer<typeof registerSchema>;

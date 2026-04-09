@@ -149,6 +149,7 @@ describe('UserService', () => {
         userName: 'newuser',
         email: 'new@example.com',
         password: '123456',
+        code: '123456',
       };
       const mockCreated = {
         id: 2,

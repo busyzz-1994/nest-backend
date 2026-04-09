@@ -26,16 +26,20 @@ import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { MENU_KEYS } from '../common/constants/menu.constant';
 import type { JwtPayload } from '../common/interfaces/jwt-payload.interface';
 import { R2Service } from '../r2/r2.service';
+import { RedisService } from '../redis/redis.service';
+import { MailService } from '../mail/mail.service';
 import { UserService } from './user.service';
 import {
   loginSchema,
   registerSchema,
+  sendCodeSchema,
   updateMeSchema,
   updateUserPermissionsSchema,
 } from './schemas/user.schema';
 import type {
   LoginInput,
   RegisterInput,
+  SendCodeInput,
   UpdateMeInput,
   UpdateUserPermissionsInput,
 } from './schemas/user.schema';
@@ -46,14 +50,18 @@ export class UserController {
     private readonly userService: UserService,
     private readonly config: ConfigService,
     private readonly r2: R2Service,
+    private readonly redis: RedisService,
+    private readonly mail: MailService,
   ) {}
 
   /* -------- 公开接口 -------- */
 
-  @Post('register')
-  async register(
-    @Body(new ZodValidationPipe(registerSchema)) body: RegisterInput,
+  @Post('send-code')
+  @HttpCode(200)
+  async sendCode(
+    @Body(new ZodValidationPipe(sendCodeSchema)) body: SendCodeInput,
   ) {
+    // 检查邮箱是否已被注册
     const existing = await this.userService.findByEmail(body.email);
     if (existing) {
       throw new HttpException(
@@ -61,6 +69,54 @@ export class UserController {
         HttpStatus.CONFLICT,
       );
     }
+
+    // 60 秒发送冷却
+    const cooldownKey = `verify-cooldown:${body.email}`;
+    const hasCooldown = await this.redis.exists(cooldownKey);
+    if (hasCooldown) {
+      throw new HttpException(
+        { code: 429, message: '发送太频繁，请 60 秒后重试' },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
+    // 生成 6 位随机数字验证码
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // 存入 Redis，验证码 5 分钟过期，冷却 60 秒
+    await this.redis.set(`verify:${body.email}`, code, 300);
+    await this.redis.set(cooldownKey, '1', 60);
+
+    // 发送邮件
+    await this.mail.sendVerificationCode(body.email, code);
+
+    return { code: 200, message: '验证码已发送' };
+  }
+
+  @Post('register')
+  async register(
+    @Body(new ZodValidationPipe(registerSchema)) body: RegisterInput,
+  ) {
+    // 校验验证码
+    const storedCode = await this.redis.get(`verify:${body.email}`);
+    if (!storedCode || Number(storedCode) !== Number(body.code)) {
+      throw new HttpException(
+        { code: 400, message: '验证码无效或已过期' },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const existing = await this.userService.findByEmail(body.email);
+    if (existing) {
+      throw new HttpException(
+        { code: 409, message: '该邮箱已被注册' },
+        HttpStatus.CONFLICT,
+      );
+    }
+
+    // 验证通过，删除 Redis 中的验证码
+    await this.redis.del(`verify:${body.email}`);
+
     const user = await this.userService.create(body);
     return { code: 201, message: '注册成功', data: user };
   }

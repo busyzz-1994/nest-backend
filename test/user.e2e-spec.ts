@@ -170,7 +170,7 @@ describe('UserController (e2e)', () => {
       expect(res.body.data.email).toBe('test@example.com');
 
       // 验证响应中设置了 token cookie
-      const cookies = res.headers['set-cookie'];
+      const cookies = res.headers['set-cookie'] as unknown as string[];
       expect(cookies).toBeDefined();
       expect(cookies.some((c: string) => c.startsWith('token='))).toBe(true);
     });
@@ -224,7 +224,7 @@ describe('UserController (e2e)', () => {
         .post('/api/users/login')
         .send({ email: 'admin@example.com', password: '123456' });
 
-      return res.headers['set-cookie'];
+      return res.headers['set-cookie'] as unknown as string[];
     }
 
     it('GET /api/users/me — 未登录 → 401', async () => {

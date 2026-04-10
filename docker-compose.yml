@@ -12,3 +12,17 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=4000
+
+  app-test:
+    build:
+      context: .
+      args:
+        - POSTGRES_URL_NON_POOLING=${POSTGRES_URL_NON_POOLING}
+    restart: always
+    ports:
+      - '4001:4001'
+    env_file:
+      - .env.test
+    environment:
+      - NODE_ENV=production
+      - PORT=4001

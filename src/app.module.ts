@@ -6,6 +6,7 @@ import { RedisModule } from './redis/redis.module';
 import { MailModule } from './mail/mail.module';
 import { UserModule } from './user/user.module';
 import { PostModule } from './post/post.module';
+import { StreamingModule } from './streaming/streaming.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { PostModule } from './post/post.module';
     MailModule,
     UserModule,
     PostModule,
+    StreamingModule,
   ],
 })
 export class AppModule {}

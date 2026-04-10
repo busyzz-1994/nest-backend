@@ -30,8 +30,8 @@ export async function createApp(): Promise<Express> {
   return cachedApp;
 }
 
-// 本地开发 & 生产直接启动
-if (process.env.NODE_ENV !== 'production') {
+// Vercel 以外的环境（本地开发 & VPS 生产）直接启动
+if (process.env.VERCEL !== '1') {
   async function bootstrap() {
     const app = await NestFactory.create<NestExpressApplication>(AppModule);
     configureApp(app);

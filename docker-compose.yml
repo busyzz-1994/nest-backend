@@ -1,6 +1,9 @@
 services:
   app:
-    build: .
+    build:
+      context: .
+      args:
+        - POSTGRES_URL_NON_POOLING=${POSTGRES_URL_NON_POOLING}
     restart: always
     ports:
       - '4000:4000'

@@ -31,14 +31,14 @@ export async function createApp(): Promise<Express> {
 }
 
 // Vercel 以外的环境（本地开发 & VPS 生产）直接启动
-if (process.env.VERCEL !== '1') {
-  async function bootstrap() {
-    const app = await NestFactory.create<NestExpressApplication>(AppModule);
-    configureApp(app);
+// if (process.env.VERCEL !== '1') {
+async function bootstrap() {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  configureApp(app);
 
-    const port = process.env.PORT ?? 4000;
-    await app.listen(port);
-    console.log(`Server running at http://localhost:${port}`);
-  }
-  bootstrap();
+  const port = process.env.PORT ?? 4000;
+  await app.listen(port);
+  console.log(`Server running at http://localhost:${port}`);
 }
+bootstrap();
+// }
